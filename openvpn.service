@@ -1,0 +1,12 @@
+[Unit]
+Description=OpenVPN Service started by zengls
+After=network.target
+
+[Service]
+ExecStart=/usr/sbin/openvpn --config /home/xxx/.local/ovpn/client3.ovpn
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+
