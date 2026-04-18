@@ -39,3 +39,8 @@ sudo apt install -y \
     unrar p7zip-full rar zip \
     gparted xfsprogs uidmap extundelete \
     ffmpeg mplayer
+
+sudo apt-get remove -y fish fish-common
+sudo add-apt-repository ppa:fish-shell/release-4
+sudo apt update
+sudo apt install -y fish
