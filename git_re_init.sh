@@ -50,7 +50,7 @@ echo "Removing .git ..."
 rm -rf .git
 
 echo "git init ..."
-git init
+git init -b main
 
 echo "Adding remote origin ..."
 git remote add origin "$REMOTE_URL"
