@@ -50,7 +50,9 @@ echo "Removing .git ..."
 rm -rf .git
 
 echo "git init ..."
-git init -b main
+git init
+# -b/--initial-branch needs git>=2.28; set HEAD directly for older git
+git symbolic-ref HEAD refs/heads/main
 
 echo "Adding remote origin ..."
 git remote add origin "$REMOTE_URL"
