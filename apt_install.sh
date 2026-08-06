@@ -43,6 +43,9 @@ sudo apt install -y \
 # sudo snap install -y nvtop btop
 sudo apt install -y libnetcdf-dev libglm-dev libglew-dev libpng-dev libfreetype6-dev
 
+# 8. Clipboard and selection tools
+sudo apt install xclip xsel
+
 sudo apt-get remove -y fish fish-common
 sudo add-apt-repository ppa:fish-shell/release-4
 sudo apt update
