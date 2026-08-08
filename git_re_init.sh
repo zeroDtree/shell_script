@@ -4,6 +4,10 @@
 # Re-init the current directory as a fresh git repo.
 # Remote URL is taken from the existing origin before deleting .git.
 #
+# Submodules: before wiping .git, top-level gitlinks are snapshotted and
+# .git/modules is copied to a temp dir. After git init, modules are restored
+# and gitlinks are re-registered (nested modules travel with .git/modules).
+#
 # Usage:
 #   ./git_re_init.sh [options]
 #
@@ -12,6 +16,7 @@
 #   2) everything else  -> "reinit"  (only with -a/--all)
 #
 # If no options are passed, only the .gitignore "init" commit is created.
+# Gitlinks are left staged (not part of "init") for a later commit.
 # @help-end
 
 # @help-options-begin
@@ -58,10 +63,39 @@ fi
 
 echo "Parsed origin: $REMOTE_URL"
 
-read -r -p "This will delete .git and re-init repo with origin=$REMOTE_URL. Continue? [y/N] " confirm
+HAS_MODULES=0
+GITLINK_COUNT="$(git ls-files -s | awk '$1 == "160000"' | wc -l | tr -d ' ')"
+if [[ -d .git/modules ]]; then
+  HAS_MODULES=1
+fi
+
+CONFIRM_MSG="This will delete .git and re-init repo with origin=$REMOTE_URL."
+if [[ "$GITLINK_COUNT" -gt 0 || "$HAS_MODULES" -eq 1 ]]; then
+  CONFIRM_MSG+=" Submodules will be preserved via external .git/modules backup."
+fi
+read -r -p "${CONFIRM_MSG} Continue? [y/N] " confirm
 if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
   echo "Aborted."
   exit 0
+fi
+
+BACKUP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/git_reinit.XXXXXX")"
+trap 'rm -rf "$BACKUP_DIR"' EXIT
+
+# Format: <sha><TAB><path>  (path may contain spaces)
+git ls-files -s | awk -F '\t' '
+  $1 ~ /^160000 / {
+    split($1, a, / /)
+    print a[2] "\t" $2
+  }
+' > "${BACKUP_DIR}/gitlinks.txt"
+GITLINK_COUNT="$(wc -l < "${BACKUP_DIR}/gitlinks.txt" | tr -d ' ')"
+
+if [[ -d .git/modules ]]; then
+  echo "Backing up .git/modules to ${BACKUP_DIR}/modules (${GITLINK_COUNT} top-level gitlink(s))"
+  cp -a .git/modules "${BACKUP_DIR}/modules"
+elif [[ "$GITLINK_COUNT" -gt 0 ]]; then
+  echo "Snapshot: ${GITLINK_COUNT} top-level gitlink(s) (no .git/modules directory)"
 fi
 
 echo "Removing .git ..."
@@ -75,12 +109,30 @@ git symbolic-ref HEAD refs/heads/main
 echo "Adding remote origin ..."
 git remote add origin "$REMOTE_URL"
 
+if [[ -d "${BACKUP_DIR}/modules" ]]; then
+  echo "Restoring .git/modules ..."
+  cp -a "${BACKUP_DIR}/modules" .git/
+fi
+
 if [[ -f .gitignore ]]; then
   echo 'Commit 1: .gitignore -> "init"'
   git add .gitignore
   git commit -m "init"
 else
   echo "Warning: .gitignore not found, skip first commit"
+fi
+
+if [[ "$GITLINK_COUNT" -gt 0 ]]; then
+  echo "Re-registering ${GITLINK_COUNT} top-level gitlink(s) ..."
+  while IFS=$'\t' read -r sha path || [[ -n "${sha:-}" ]]; do
+    [[ -n "${sha:-}" && -n "${path:-}" ]] || continue
+    git update-index --add --cacheinfo "160000,${sha},${path}"
+  done < "${BACKUP_DIR}/gitlinks.txt" || true
+
+  if [[ -f .gitmodules ]]; then
+    git submodule sync --recursive || true
+  fi
+  git submodule absorbgitdirs 2>/dev/null || true
 fi
 
 if [[ "$COMMIT_ALL" -eq 1 ]]; then
