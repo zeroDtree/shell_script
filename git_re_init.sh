@@ -7,6 +7,8 @@
 # Submodules: before wiping .git, top-level gitlinks are snapshotted and
 # .git/modules is copied to a temp dir. After git init, modules are restored
 # and gitlinks are re-registered (nested modules travel with .git/modules).
+# Optionally run git submodule init (-i or interactive prompt) so status
+# no longer shows the uninitialized "-" prefix.
 #
 # Usage:
 #   ./git_re_init.sh [options]
@@ -21,6 +23,7 @@
 
 # @help-options-begin
 #   -a, --all               also commit all remaining files as "reinit"
+#   -i, --init-submodules   run git submodule init after restore (no prompt)
 #   -h, --help              show help
 # @help-options-end
 
@@ -34,10 +37,15 @@ usage() {
 }
 
 COMMIT_ALL=0
+INIT_SUBMODULES=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -a|--all)
       COMMIT_ALL=1
+      shift
+      ;;
+    -i|--init-submodules)
+      INIT_SUBMODULES=1
       shift
       ;;
     -h|--help)
@@ -77,6 +85,14 @@ read -r -p "${CONFIRM_MSG} Continue? [y/N] " confirm
 if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
   echo "Aborted."
   exit 0
+fi
+
+# Without -i, ask when submodules are present (skip prompt if -i already set).
+if [[ "$INIT_SUBMODULES" -eq 0 && ( "$GITLINK_COUNT" -gt 0 || "$HAS_MODULES" -eq 1 ) ]]; then
+  read -r -p "Run git submodule init after restore? [y/N] " init_confirm
+  if [[ "$init_confirm" =~ ^[Yy]$ ]]; then
+    INIT_SUBMODULES=1
+  fi
 fi
 
 BACKUP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/git_reinit.XXXXXX")"
@@ -130,6 +146,10 @@ if [[ "$GITLINK_COUNT" -gt 0 ]]; then
   done < "${BACKUP_DIR}/gitlinks.txt" || true
 
   if [[ -f .gitmodules ]]; then
+    if [[ "$INIT_SUBMODULES" -eq 1 ]]; then
+      echo "Running git submodule init ..."
+      git submodule init
+    fi
     git submodule sync --recursive || true
   fi
   git submodule absorbgitdirs 2>/dev/null || true
