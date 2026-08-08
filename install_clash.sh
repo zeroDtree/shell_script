@@ -1,23 +1,38 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+# @help-begin
+# Download Clash .gz into a directory, gunzip, and chmod.
+#
+# Usage:
+#   ./install_clash.sh [options]
+#
+# If no options are passed, the default behavior is equivalent to:
+#   ./install_clash.sh --dir ~/software/clash
+# @help-end
+
+# @help-options-begin
+#   -d, --dir PATH          install directory (default: ~/software/clash)
+#   -u, --url URL           download URL (default: clash-linux-amd64 v1.18.0)
+#   -h, --help              show help
+# @help-options-end
+
+set -euo pipefail
+
+usage() {
+  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
+  printf '%s\n' '#' 'Options:' '#'
+  awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "$0"
+  exit 0
+}
 
 install_dir="${HOME}/software/clash"
 url="https://pub-eac3eb5670f44f09984dee5c57939316.r2.dev/clash-linux-amd64-v1.18.0.gz"
 
-usage() {
-    cat <<EOF
-Usage: $(basename "$0") [options]
+case "${1:-}" in
+  -h|--help) usage ;;
+esac
 
-Download Clash .gz into a directory, gunzip, and chmod.
-
-Options:
-  -d, --dir PATH     Install directory (default: ~/software/clash)
-  -u, --url URL      Download URL (default: clash-linux-amd64 v1.18.0)
-  -h, --help         Show this help
-EOF
-}
-
-ARGS=$(getopt --options="d:u:h" --longoptions="dir:,url:,help" -- "$@")
-if [ $? -ne 0 ]; then
+if ! ARGS=$(getopt --options="d:u:h" --longoptions="dir:,url:,help" -- "$@"); then
     echo "Failed to parse arguments." >&2
     exit 1
 fi
@@ -35,7 +50,6 @@ while true; do
             ;;
         -h|--help)
             usage
-            exit 0
             ;;
         --)
             shift

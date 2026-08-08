@@ -1,23 +1,38 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+# @help-begin
+# Download the official uv standalone installer and install uv into a directory.
+#
+# Usage:
+#   ./install_uv.sh [options]
+#
+# If no options are passed, the default behavior is equivalent to:
+#   ./install_uv.sh --dir ~/.local/bin --url https://astral.sh/uv/install.sh
+# @help-end
+
+# @help-options-begin
+#   -d, --dir PATH          install directory (default: ~/.local/bin)
+#   -u, --url URL           installer script URL (default: astral.sh uv install.sh)
+#   -h, --help              show help
+# @help-options-end
+
+set -euo pipefail
+
+usage() {
+  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
+  printf '%s\n' '#' 'Options:' '#'
+  awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "$0"
+  exit 0
+}
 
 install_dir="${HOME}/.local/bin"
 url="https://astral.sh/uv/install.sh"
 
-usage() {
-    cat <<EOF
-Usage: $(basename "$0") [options]
+case "${1:-}" in
+  -h|--help) usage ;;
+esac
 
-Download the official uv standalone installer and install uv into a directory.
-
-Options:
-  -d, --dir PATH     Install directory (default: ~/.local/bin)
-  -u, --url URL      Installer script URL (default: astral.sh uv install.sh)
-  -h, --help         Show this help
-EOF
-}
-
-ARGS=$(getopt --options="d:u:h" --longoptions="dir:,url:,help" -- "$@")
-if [ $? -ne 0 ]; then
+if ! ARGS=$(getopt --options="d:u:h" --longoptions="dir:,url:,help" -- "$@"); then
     echo "Failed to parse arguments." >&2
     exit 1
 fi
@@ -35,7 +50,6 @@ while true; do
             ;;
         -h|--help)
             usage
-            exit 0
             ;;
         --)
             shift

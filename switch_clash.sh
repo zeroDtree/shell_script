@@ -1,5 +1,31 @@
 #!/usr/bin/env bash
+
+# @help-begin
 # Clash proxy-group switcher with auto API setup.
+#
+# Usage:
+#   ./switch_clash.sh [options] <command>
+#
+# Commands:
+#   setup              ensure Clash API is enabled in config (no auto-restart)
+#   gen|generate       fetch proxy group members into nodes file
+#   apply|put          switch to the uncommented node in nodes file
+#   help               show this help
+#
+# Without a command, an interactive menu is shown.
+#
+# Defaults when omitted:
+#   --group Ghelper
+#   --file nodes.txt
+# @help-end
+
+# @help-options-begin
+#   -c, --config PATH       Clash YAML config path
+#   -g, --group NAME        proxy group name (default: Ghelper)
+#   -f, --file PATH         nodes list file (default: nodes.txt)
+#   -h, --help              show help
+# @help-options-end
+
 set -Eeuo pipefail
 
 readonly DEFAULT_CONTROLLER="127.0.0.1:9090"
@@ -27,23 +53,10 @@ info() {
 }
 
 usage() {
-    cat <<EOF
-Usage: $(basename "$0") [options] <command>
-
-Commands:
-  setup              Ensure Clash API is enabled in config (no auto-restart)
-  gen|generate       Fetch proxy group members into nodes file
-  apply|put          Switch to the uncommented node in nodes file
-  help               Show this help
-
-Options:
-  -c, --config PATH  Clash YAML config path
-  -g, --group NAME   Proxy group name (default: ${DEFAULT_GROUP})
-  -f, --file PATH    Nodes list file (default: ${DEFAULT_FILE})
-  -h, --help         Show this help
-
-Without a command, an interactive menu is shown.
-EOF
+    awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
+    printf '%s\n' '#' 'Options:' '#'
+    awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "$0"
+    exit 0
 }
 
 candidate_configs() {
@@ -504,7 +517,6 @@ main() {
                 ;;
             -h|--help)
                 usage
-                exit 0
                 ;;
             --)
                 shift

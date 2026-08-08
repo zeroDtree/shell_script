@@ -1,11 +1,44 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+# @help-begin
+# Check the frpc connection to the FRP server and restart frpc if needed.
+#
+# Usage:
+#   ./frp_auto_restart.sh -i SERVER_IP [options]
+#
+# Defaults when omitted:
+#   --server_port 7000
+#   --frp_home ~/.local/frp
+#   --log_path ~/.local/frp/log.txt
+# @help-end
+
+# @help-options-begin
+#   -i, --server_ip IP      FRP server IP (required)
+#   -p, --server_port PORT  FRP server port (default: 7000)
+#   -f, --frp_home PATH     frpc home directory (default: ~/.local/frp)
+#   -l, --log_path PATH     restart log file (default: $frp_home/log.txt)
+#   -h, --help              show help
+# @help-options-end
+
+set -euo pipefail
+
+usage() {
+  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
+  printf '%s\n' '#' 'Options:' '#'
+  awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "$0"
+  exit 0
+}
 
 server_port="7000"
 frp_home="$HOME/.local/frp"
 log_path="$frp_home/log.txt"
+server_ip=""
 
-ARGS=$(getopt --options="i:p:f:l:r" --longoptions="server_ip:,server_port:,frp_home:,log_path:,remote_port" -- "$@")
-if [ $? -ne 0 ]; then
+case "${1:-}" in
+  -h|--help) usage ;;
+esac
+
+if ! ARGS=$(getopt --options="i:p:f:l:h" --longoptions="server_ip:,server_port:,frp_home:,log_path:,help" -- "$@"); then
     echo "Failed to parse arguments." >&2
     exit 1
 fi
@@ -29,16 +62,21 @@ while true; do
             log_path="$2"
             shift 2
             ;;
+        -h|--help)
+            usage
+            ;;
         --)
             shift
             break
             ;;
         *)
-            echo "unrecognized option: $1"
+            echo "unrecognized option: $1" >&2
             exit 1
             ;;
     esac
 done
+
+[[ -n "$server_ip" ]] || usage
 
 echo "server_ip=$server_ip"
 echo "server_port=$server_port"
@@ -67,4 +105,3 @@ if ! check_connection; then
 else
     echo "Connection is alive."
 fi
-

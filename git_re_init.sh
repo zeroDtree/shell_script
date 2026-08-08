@@ -1,11 +1,32 @@
-#!/bin/bash
-# Usage: ./git_re_init.sh [-a|--all]
-# Re-init current directory as a fresh git repo:
-#   1) .gitignore only  -> "init"
-#   2) everything else  -> "reinit"  (optional, with -a/--all)
+#!/usr/bin/env bash
+
+# @help-begin
+# Re-init the current directory as a fresh git repo.
 # Remote URL is taken from the existing origin before deleting .git.
+#
+# Usage:
+#   ./git_re_init.sh [options]
+#
+# Commits:
+#   1) .gitignore only  -> "init"
+#   2) everything else  -> "reinit"  (only with -a/--all)
+#
+# If no options are passed, only the .gitignore "init" commit is created.
+# @help-end
+
+# @help-options-begin
+#   -a, --all               also commit all remaining files as "reinit"
+#   -h, --help              show help
+# @help-options-end
 
 set -euo pipefail
+
+usage() {
+  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
+  printf '%s\n' '#' 'Options:' '#'
+  awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "$0"
+  exit 0
+}
 
 COMMIT_ALL=0
 while [[ $# -gt 0 ]]; do
@@ -15,13 +36,10 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -h|--help)
-      echo "Usage: $0 [-a|--all]"
-      echo "  -a, --all  also commit all remaining files as \"reinit\""
-      exit 0
+      usage
       ;;
     *)
-      echo "Unrecognized option: $1"
-      echo "Usage: $0 [-a|--all]"
+      echo "Unrecognized option: $1 (try --help)" >&2
       exit 1
       ;;
   esac
