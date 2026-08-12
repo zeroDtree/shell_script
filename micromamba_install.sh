@@ -8,7 +8,7 @@
 #   ./micromamba_install.sh [options]
 #
 # If no options are passed, the default behavior is equivalent to:
-#   ./micromamba_install.sh --bin-dir ~/.local/bin --root-prefix ~/micromamba
+#   ./micromamba_install.sh --bin-dir ~/.local/bin --root-prefix ~/.local/share/mamba
 #
 # After install, restart your shell (or source its rc file), then e.g.:
 #   micromamba create -n test python=3.12
@@ -17,7 +17,7 @@
 
 # @help-options-begin
 #   -b, --bin-dir PATH      micromamba binary directory (default: ~/.local/bin)
-#   -r, --root-prefix PATH  MAMBA_ROOT_PREFIX (default: ~/micromamba)
+#   -r, --root-prefix PATH  MAMBA_ROOT_PREFIX (default: ~/.local/share/mamba)
 #   -v, --version VERSION   release tag (default: latest)
 #   -s, --shells LIST       comma-separated shells to init (default: auto-detect
 #                           bash,zsh,fish via command -v)
@@ -36,7 +36,7 @@ usage() {
 }
 
 bin_dir="${HOME}/.local/bin"
-root_prefix="${HOME}/micromamba"
+root_prefix="${HOME}/.local/share/mamba"
 version=""
 shells_arg=""
 do_conda_forge=1
