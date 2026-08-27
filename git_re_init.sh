@@ -24,21 +24,21 @@
 # @help-options-begin
 #   -a, --all               also commit all remaining files as "reinit"
 #   -i, --init-submodules   run git submodule init after restore (no prompt)
+#   -y, --yes               skip confirmation prompts
 #   -h, --help              show help
 # @help-options-end
 
 set -euo pipefail
 
-usage() {
-  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
-  printf '%s\n' '#' 'Options:' '#'
-  awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "$0"
-  exit 0
-}
+_LIB="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+[ -f "${_LIB}" ] || { echo "error: missing ${_LIB} (keep this script in the repo tree)" >&2; exit 1; }
+# shellcheck source=lib/common.sh
+. "${_LIB}"
 
 COMMIT_ALL=0
 INIT_SUBMODULES=0
-while [[ $# -gt 0 ]]; do
+SKIP_CONFIRM=0
+while [ "$#" -gt 0 ]; do
   case "$1" in
     -a|--all)
       COMMIT_ALL=1
@@ -48,50 +48,61 @@ while [[ $# -gt 0 ]]; do
       INIT_SUBMODULES=1
       shift
       ;;
+    -y|--yes)
+      SKIP_CONFIRM=1
+      shift
+      ;;
     -h|--help)
       usage
       ;;
+    -*)
+      die "unrecognized option: $1 (try --help)"
+      ;;
     *)
-      echo "Unrecognized option: $1 (try --help)" >&2
-      exit 1
+      die "unrecognized option: $1 (try --help)"
       ;;
   esac
 done
 
-if [[ ! -d .git ]]; then
-  echo "Error: no .git directory found in $(pwd)"
-  exit 1
+if [ ! -d .git ]; then
+  die "no .git directory found in $(pwd)"
 fi
 
 REMOTE_URL="$(git remote get-url origin 2>/dev/null || true)"
-if [[ -z "$REMOTE_URL" ]]; then
-  echo "Error: no remote 'origin' found, cannot recover remote URL"
-  exit 1
+if [ -z "$REMOTE_URL" ]; then
+  die "no remote 'origin' found, cannot recover remote URL"
 fi
 
 echo "Parsed origin: $REMOTE_URL"
 
 HAS_MODULES=0
 GITLINK_COUNT="$(git ls-files -s | awk '$1 == "160000"' | wc -l | tr -d ' ')"
-if [[ -d .git/modules ]]; then
+if [ -d .git/modules ]; then
   HAS_MODULES=1
 fi
 
-CONFIRM_MSG="This will delete .git and re-init repo with origin=$REMOTE_URL."
-if [[ "$GITLINK_COUNT" -gt 0 || "$HAS_MODULES" -eq 1 ]]; then
-  CONFIRM_MSG+=" Submodules will be preserved via external .git/modules backup."
-fi
-read -r -p "${CONFIRM_MSG} Continue? [y/N] " confirm
-if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-  echo "Aborted."
-  exit 0
+if [ "${SKIP_CONFIRM}" -eq 0 ]; then
+  CONFIRM_MSG="This will delete .git and re-init repo with origin=$REMOTE_URL."
+  if [ "$GITLINK_COUNT" -gt 0 ] || [ "$HAS_MODULES" -eq 1 ]; then
+    CONFIRM_MSG="${CONFIRM_MSG} Submodules will be preserved via external .git/modules backup."
+  fi
+  read -r -p "${CONFIRM_MSG} Continue? [y/N] " confirm
+  case "${confirm}" in
+    [Yy]) ;;
+    *)
+      echo "Aborted."
+      exit 0
+      ;;
+  esac
 fi
 
-# Without -i, ask when submodules are present (skip prompt if -i already set).
-if [[ "$INIT_SUBMODULES" -eq 0 && ( "$GITLINK_COUNT" -gt 0 || "$HAS_MODULES" -eq 1 ) ]]; then
-  read -r -p "Run git submodule init after restore? [y/N] " init_confirm
-  if [[ "$init_confirm" =~ ^[Yy]$ ]]; then
-    INIT_SUBMODULES=1
+# Without -i, ask when submodules are present (skip prompt if -i or --yes).
+if [ "$INIT_SUBMODULES" -eq 0 ] && [ "${SKIP_CONFIRM}" -eq 0 ]; then
+  if [ "$GITLINK_COUNT" -gt 0 ] || [ "$HAS_MODULES" -eq 1 ]; then
+    read -r -p "Run git submodule init after restore? [y/N] " init_confirm
+    case "${init_confirm}" in
+      [Yy]) INIT_SUBMODULES=1 ;;
+    esac
   fi
 fi
 
@@ -107,10 +118,10 @@ git ls-files -s | awk -F '\t' '
 ' > "${BACKUP_DIR}/gitlinks.txt"
 GITLINK_COUNT="$(wc -l < "${BACKUP_DIR}/gitlinks.txt" | tr -d ' ')"
 
-if [[ -d .git/modules ]]; then
+if [ -d .git/modules ]; then
   echo "Backing up .git/modules to ${BACKUP_DIR}/modules (${GITLINK_COUNT} top-level gitlink(s))"
   cp -a .git/modules "${BACKUP_DIR}/modules"
-elif [[ "$GITLINK_COUNT" -gt 0 ]]; then
+elif [ "$GITLINK_COUNT" -gt 0 ]; then
   echo "Snapshot: ${GITLINK_COUNT} top-level gitlink(s) (no .git/modules directory)"
 fi
 
@@ -125,17 +136,17 @@ git symbolic-ref HEAD refs/heads/main
 echo "Adding remote origin ..."
 git remote add origin "$REMOTE_URL"
 
-if [[ -d "${BACKUP_DIR}/modules" ]]; then
+if [ -d "${BACKUP_DIR}/modules" ]; then
   echo "Restoring .git/modules ..."
   cp -a "${BACKUP_DIR}/modules" .git/
 fi
 
-if [[ -f .gitignore ]]; then
+if [ -f .gitignore ]; then
   echo 'Commit 1: .gitignore -> "init"'
   git add .gitignore
   git commit -m "init"
 else
-  echo "Warning: .gitignore not found, skip first commit"
+  warn ".gitignore not found, skip first commit"
 fi
 
 if [[ "$GITLINK_COUNT" -gt 0 ]]; then
@@ -167,4 +178,6 @@ fi
 
 echo "Done."
 git remote -v
-git log --oneline
+if git rev-parse --verify HEAD >/dev/null 2>&1; then
+  git log --oneline
+fi

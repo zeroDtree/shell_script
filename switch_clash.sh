@@ -17,6 +17,8 @@
 # Defaults when omitted:
 #   --group Ghelper
 #   --file nodes.txt
+#
+# Env: python3, curl — required for YAML edits and the Clash HTTP API.
 # @help-end
 
 # @help-options-begin
@@ -27,6 +29,16 @@
 # @help-options-end
 
 set -Eeuo pipefail
+
+_LIB="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+[ -f "${_LIB}" ] || { echo "error: missing ${_LIB} (keep this script in the repo tree)" >&2; exit 1; }
+# shellcheck source=lib/common.sh
+. "${_LIB}"
+
+# Clash-specific progress prefix (overrides lib info).
+info() {
+    printf -- '--> %s\n' "$*"
+}
 
 readonly DEFAULT_CONTROLLER="127.0.0.1:9090"
 readonly DEFAULT_GROUP="Ghelper"
@@ -42,22 +54,6 @@ API_SECRET=""
 NEED_RESTART=0
 CURL_HTTP_CODE=""
 API_BODY=""
-
-die() {
-    printf -- 'Error: %s\n' "$*" >&2
-    exit 1
-}
-
-info() {
-    printf -- '--> %s\n' "$*"
-}
-
-usage() {
-    awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
-    printf '%s\n' '#' 'Options:' '#'
-    awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "$0"
-    exit 0
-}
 
 candidate_configs() {
     local -a paths=(
@@ -90,7 +86,7 @@ resolve_config() {
             info "Using config: $CONFIG_PATH"
             ;;
         *)
-            printf -- 'Error: multiple configs found; pass --config <path>\n' >&2
+            printf '%s\n' "error: multiple configs found; pass --config <path>" >&2
             printf -- '  %s\n' "${found[@]}" >&2
             exit 1
             ;;
@@ -501,17 +497,17 @@ main() {
     while (($#)); do
         case "$1" in
             -c|--config)
-                (($# >= 2)) || die "$1 requires a path"
+                require_value "$@"
                 CONFIG_PATH="$2"
                 shift 2
                 ;;
             -g|--group)
-                (($# >= 2)) || die "$1 requires a name"
+                require_value "$@"
                 GROUP="$2"
                 shift 2
                 ;;
             -f|--file)
-                (($# >= 2)) || die "$1 requires a path"
+                require_value "$@"
                 FILE="$2"
                 shift 2
                 ;;
@@ -532,6 +528,14 @@ main() {
                 ;;
         esac
     done
+
+    FILE="$(expand_path "${FILE}")"
+    if [[ -n "$CONFIG_PATH" ]]; then
+        CONFIG_PATH="$(expand_path "$CONFIG_PATH")"
+    fi
+
+    have_cmd python3 || die "python3 is required"
+    have_cmd curl || die "curl is required"
 
     local cmd="${positional[0]:-}"
     case "$cmd" in

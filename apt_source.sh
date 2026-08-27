@@ -1,45 +1,99 @@
 #!/usr/bin/env bash
-# Switch Ubuntu apt sources to Tsinghua mirror. Detects release from /etc/os-release,
+
+# @help-begin
+# Switch Ubuntu apt sources to a mirror. Detects release from /etc/os-release,
 # uses DEB822 (/etc/apt/sources.list.d/ubuntu.sources) when present (Ubuntu 24.04+),
 # otherwise one-line style (/etc/apt/sources.list). Non-amd64/i386 uses ubuntu-ports.
 # Security suite stays on official hosts (recommended; mirror sync delay).
+#
+# Usage:
+#   ./apt_source.sh [options]
+#
+# Env: APT_MIRROR_HOST — mirror host (default: mirrors.tuna.tsinghua.edu.cn)
+#      APT_USE_HTTPS — 1 for HTTPS, 0 for HTTP (default: 1)
+#
+# If no options are passed, the default behavior is equivalent to:
+#   ./apt_source.sh --mirror mirrors.tuna.tsinghua.edu.cn
+# @help-end
+
+# @help-options-begin
+#       --mirror HOST       apt mirror host (default: $APT_MIRROR_HOST or Tsinghua)
+#       --http              use HTTP instead of HTTPS for the main mirror
+#   -h, --help              show help
+# @help-options-end
 
 set -euo pipefail
+
+_LIB="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+[ -f "${_LIB}" ] || { echo "error: missing ${_LIB} (keep this script in the repo tree)" >&2; exit 1; }
+# shellcheck source=lib/common.sh
+. "${_LIB}"
 
 MIRROR_HOST="${APT_MIRROR_HOST:-mirrors.tuna.tsinghua.edu.cn}"
 USE_HTTPS="${APT_USE_HTTPS:-1}"
 
-if [[ "${EUID:-}" -eq 0 ]]; then
-	SUDO=""
-else
-	SUDO="sudo"
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h|--help)
+      usage
+      ;;
+    --mirror)
+      require_value "$@"
+      MIRROR_HOST="$2"
+      shift 2
+      ;;
+    --http)
+      USE_HTTPS=0
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      die "unrecognized option: $1"
+      ;;
+    *)
+      die "Unexpected arguments: $*"
+      ;;
+  esac
+done
+
+if [ "$#" -gt 0 ]; then
+  die "Unexpected arguments: $*"
 fi
 
-echo "==> apt_source.sh: Ubuntu apt mirror -> ${MIRROR_HOST} ($([[ "$USE_HTTPS" == "1" ]] && echo HTTPS || echo HTTP))"
+if [ "$(id -u)" -eq 0 ]; then
+  SUDO=""
+else
+  SUDO="sudo"
+fi
 
-if [[ ! -r /etc/os-release ]]; then
-	echo "apt_source.sh: cannot read /etc/os-release" >&2
-	exit 1
+if [ "$USE_HTTPS" = "1" ]; then
+  SCHEME="https"
+  SCHEME_LABEL="HTTPS"
+else
+  SCHEME="http"
+  SCHEME_LABEL="HTTP"
+fi
+
+echo "==> apt_source.sh: Ubuntu apt mirror -> ${MIRROR_HOST} (${SCHEME_LABEL})"
+
+if [ ! -r /etc/os-release ]; then
+  die "cannot read /etc/os-release"
 fi
 
 # shellcheck source=/dev/null
 . /etc/os-release
 
-if [[ "${ID:-}" != "ubuntu" ]]; then
-	echo "apt_source.sh: this script is for Ubuntu only (ID=${ID:-unknown})" >&2
-	exit 1
+if [ "${ID:-}" != "ubuntu" ]; then
+  die "this script is for Ubuntu only (ID=${ID:-unknown})"
 fi
 
 CODENAME="${VERSION_CODENAME:?}"
 VERSION_ID="${VERSION_ID:?}"
 
 echo "==> Release: Ubuntu ${VERSION_ID} (${CODENAME})"
-
-if [[ "$USE_HTTPS" == "1" ]]; then
-	SCHEME="https"
-else
-	SCHEME="http"
-fi
 
 ARCH="$(dpkg --print-architecture 2>/dev/null || true)"
 if [[ -z "$ARCH" ]]; then
@@ -52,47 +106,42 @@ fi
 
 PORTS=0
 case "$ARCH" in
-	amd64 | i386) PORTS=0 ;;
-	*) PORTS=1 ;;
+  amd64|i386) PORTS=0 ;;
+  *) PORTS=1 ;;
 esac
 
-if [[ "$PORTS" -eq 1 ]]; then
-	MIRROR_PATH="${SCHEME}://${MIRROR_HOST}/ubuntu-ports"
-	SECURITY_URI="http://ports.ubuntu.com/ubuntu-ports/"
+if [ "$PORTS" -eq 1 ]; then
+  MIRROR_PATH="${SCHEME}://${MIRROR_HOST}/ubuntu-ports"
+  SECURITY_URI="http://ports.ubuntu.com/ubuntu-ports/"
+  echo "==> Architecture: ${ARCH} -> using ubuntu-ports mirror + ports.ubuntu.com for security"
 else
-	MIRROR_PATH="${SCHEME}://${MIRROR_HOST}/ubuntu"
-	SECURITY_URI="http://security.ubuntu.com/ubuntu/"
-fi
-
-if [[ "$PORTS" -eq 1 ]]; then
-	echo "==> Architecture: ${ARCH} -> using ubuntu-ports mirror + ports.ubuntu.com for security"
-else
-	echo "==> Architecture: ${ARCH} -> using ubuntu mirror + security.ubuntu.com for security"
+  MIRROR_PATH="${SCHEME}://${MIRROR_HOST}/ubuntu"
+  SECURITY_URI="http://security.ubuntu.com/ubuntu/"
+  echo "==> Architecture: ${ARCH} -> using ubuntu mirror + security.ubuntu.com for security"
 fi
 echo "==> Main mirror URI: ${MIRROR_PATH}"
 
 KEYRING="/usr/share/keyrings/ubuntu-archive-keyring.gpg"
 echo "==> Checking keyring: ${KEYRING}"
-if [[ ! -f "$KEYRING" ]]; then
-	echo "apt_source.sh: missing ${KEYRING}; install ubuntu-keyring first." >&2
-	exit 1
+if [ ! -f "$KEYRING" ]; then
+  die "missing ${KEYRING}; install ubuntu-keyring first"
 fi
 
 ts="$(date +%Y%m%d%H%M%S)"
 backup() {
-	local f="$1"
-	if [[ -f "$f" ]]; then
-		echo "==> Backup: ${f} -> ${f}.bak.${ts}"
-		$SUDO cp -a "$f" "${f}.bak.${ts}"
-	else
-		echo "==> No existing file to backup: ${f}"
-	fi
+  local f="$1"
+  if [ -f "$f" ]; then
+    echo "==> Backup: ${f} -> ${f}.bak.${ts}"
+    $SUDO cp -a "$f" "${f}.bak.${ts}"
+  else
+    echo "==> No existing file to backup: ${f}"
+  fi
 }
 
 write_deb822() {
-	local out="$1"
-	$SUDO tee "$out" >/dev/null <<EOF
-# Generated by apt_source.sh — Tsinghua mirror (${CODENAME})
+  local out="$1"
+  $SUDO tee "$out" >/dev/null <<EOF
+# Generated by apt_source.sh — ${MIRROR_HOST} (${CODENAME})
 # Security: official (${SECURITY_URI}); main/archive: mirror
 
 Types: deb
@@ -129,9 +178,9 @@ EOF
 }
 
 write_traditional() {
-	local out="$1"
-	$SUDO tee "$out" >/dev/null <<EOF
-# Generated by apt_source.sh — Tsinghua mirror (${CODENAME})
+  local out="$1"
+  $SUDO tee "$out" >/dev/null <<EOF
+# Generated by apt_source.sh — ${MIRROR_HOST} (${CODENAME})
 deb ${MIRROR_PATH}/ ${CODENAME} main restricted universe multiverse
 # deb-src ${MIRROR_PATH}/ ${CODENAME} main restricted universe multiverse
 deb ${MIRROR_PATH}/ ${CODENAME}-updates main restricted universe multiverse
@@ -159,11 +208,11 @@ if [[ -f "$UBUNTU_SOURCES" ]]; then
 		echo "Warning: $SOURCES_LIST still has active deb lines; comment or remove Ubuntu archive lines to avoid duplicate suites." >&2
 	fi
 else
-	echo "==> Format: one-line -> ${SOURCES_LIST}"
-	backup "$SOURCES_LIST"
-	echo "==> Writing traditional sources.list..."
-	write_traditional "$SOURCES_LIST"
-	echo "==> Done: wrote ${SOURCES_LIST}"
+  echo "==> Format: one-line -> ${SOURCES_LIST}"
+  backup "$SOURCES_LIST"
+  echo "==> Writing traditional sources.list..."
+  write_traditional "$SOURCES_LIST"
+  echo "==> Done: wrote ${SOURCES_LIST}"
 fi
 
 echo "==> Finished. Refresh index when ready: sudo apt-get update"

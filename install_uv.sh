@@ -18,73 +18,57 @@
 
 set -euo pipefail
 
-usage() {
-  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
-  printf '%s\n' '#' 'Options:' '#'
-  awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "$0"
-  exit 0
-}
+_LIB="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+[ -f "${_LIB}" ] || { echo "error: missing ${_LIB} (keep this script in the repo tree)" >&2; exit 1; }
+# shellcheck source=lib/common.sh
+. "${_LIB}"
 
 install_dir="${HOME}/.local/bin"
 url="https://astral.sh/uv/install.sh"
 
-case "${1:-}" in
-  -h|--help) usage ;;
-esac
-
-if ! ARGS=$(getopt --options="d:u:h" --longoptions="dir:,url:,help" -- "$@"); then
-    echo "Failed to parse arguments." >&2
-    exit 1
-fi
-
-eval set -- "${ARGS}"
-while true; do
-    case "$1" in
-        -d|--dir)
-            install_dir="$2"
-            shift 2
-            ;;
-        -u|--url)
-            url="$2"
-            shift 2
-            ;;
-        -h|--help)
-            usage
-            ;;
-        --)
-            shift
-            break
-            ;;
-        *)
-            echo "unrecognized option: $1" >&2
-            exit 1
-            ;;
-    esac
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h|--help)
+      usage
+      ;;
+    -d|--dir)
+      require_value "$@"
+      install_dir="$2"
+      shift 2
+      ;;
+    -u|--url)
+      require_value "$@"
+      url="$2"
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      die "unrecognized option: $1"
+      ;;
+    *)
+      die "Unexpected arguments: $*"
+      ;;
+  esac
 done
 
 if [ "$#" -gt 0 ]; then
-    echo "Unexpected arguments: $*" >&2
-    exit 1
+  die "Unexpected arguments: $*"
 fi
 
-mkdir -p "$install_dir" || exit 1
+install_dir="$(expand_path "${install_dir}")"
+mkdir -p "${install_dir}"
 
 run_installer() {
-    env UV_INSTALL_DIR="$install_dir" UV_NO_MODIFY_PATH=1 sh
+  env UV_INSTALL_DIR="${install_dir}" UV_NO_MODIFY_PATH=1 sh
 }
 
-if command -v wget >/dev/null 2>&1; then
-    wget -qO- "$url" | run_installer || exit 1
-elif command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url" | run_installer || exit 1
-else
-    echo "Need wget or curl to download uv installer" >&2
-    exit 1
-fi
+download_stdout "${url}" | run_installer
 
 if [ ! -x "${install_dir}/uv" ]; then
-    echo "uv binary not found after install: ${install_dir}/uv" >&2
-    exit 1
+  die "uv binary not found after install: ${install_dir}/uv"
 fi
 
 echo "Installed uv: ${install_dir}/uv"

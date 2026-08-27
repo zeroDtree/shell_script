@@ -1,3 +1,41 @@
+#!/usr/bin/env bash
+
+# @help-begin
+# Install a personal Ubuntu package set (dev tools, HPC libs, utilities).
+# Not a profile-based installer; edit the lists below to taste.
+#
+# Usage:
+#   ./apt_install.sh
+#
+# Requires sudo. The fish PPA step needs add-apt-repository
+# (package software-properties-common).
+# @help-end
+
+# @help-options-begin
+#   -h, --help              show help
+# @help-options-end
+
+set -euo pipefail
+
+_LIB="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+[ -f "${_LIB}" ] || { echo "error: missing ${_LIB} (keep this script in the repo tree)" >&2; exit 1; }
+# shellcheck source=lib/common.sh
+. "${_LIB}"
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h|--help)
+      usage
+      ;;
+    -*)
+      die "unrecognized option: $1"
+      ;;
+    *)
+      die "Unexpected arguments: $*"
+      ;;
+  esac
+done
+
 sudo apt update
 
 # 1. Basic system tools (networking, editors, terminal multiplexers)
@@ -38,13 +76,13 @@ sudo apt install -y \
 sudo apt install -y \
     unrar p7zip-full rar zip \
     gparted xfsprogs uidmap extundelete \
-    ffmpeg mplayer
-
-# sudo snap install -y nvtop btop
-sudo apt install -y libnetcdf-dev libglm-dev libglew-dev libpng-dev libfreetype6-dev
+    ffmpeg mplayer \
+    libglm-dev libglew-dev libpng-dev libfreetype6-dev
 
 # 8. Clipboard and selection tools
-sudo apt install xclip xsel
+sudo apt install -y xclip xsel
+
+have_cmd add-apt-repository || die "add-apt-repository not found; install software-properties-common"
 
 sudo apt-get remove -y fish fish-common
 sudo add-apt-repository ppa:fish-shell/release-4

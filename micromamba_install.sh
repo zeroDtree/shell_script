@@ -28,12 +28,10 @@
 
 set -euo pipefail
 
-usage() {
-  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
-  printf '%s\n' '#' 'Options:' '#'
-  awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "$0"
-  exit 0
-}
+_LIB="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+[ -f "${_LIB}" ] || { echo "error: missing ${_LIB} (keep this script in the repo tree)" >&2; exit 1; }
+# shellcheck source=lib/common.sh
+. "${_LIB}"
 
 bin_dir="${HOME}/.local/bin"
 root_prefix="${HOME}/.local/share/mamba"
@@ -49,34 +47,22 @@ while [ "$#" -gt 0 ]; do
       usage
       ;;
     -b|--bin-dir)
-      if [ "$#" -lt 2 ]; then
-        echo "error: $1 requires a value" >&2
-        exit 1
-      fi
+      require_value "$@"
       bin_dir="$2"
       shift 2
       ;;
     -r|--root-prefix)
-      if [ "$#" -lt 2 ]; then
-        echo "error: $1 requires a value" >&2
-        exit 1
-      fi
+      require_value "$@"
       root_prefix="$2"
       shift 2
       ;;
     -v|--version)
-      if [ "$#" -lt 2 ]; then
-        echo "error: $1 requires a value" >&2
-        exit 1
-      fi
+      require_value "$@"
       version="$2"
       shift 2
       ;;
     -s|--shells)
-      if [ "$#" -lt 2 ]; then
-        echo "error: $1 requires a value" >&2
-        exit 1
-      fi
+      require_value "$@"
       shells_arg="$2"
       shift 2
       ;;
@@ -93,28 +79,17 @@ while [ "$#" -gt 0 ]; do
       break
       ;;
     -*)
-      echo "unrecognized option: $1" >&2
-      exit 1
+      die "unrecognized option: $1"
       ;;
     *)
-      echo "Unexpected arguments: $*" >&2
-      exit 1
+      die "Unexpected arguments: $*"
       ;;
   esac
 done
 
 if [ "$#" -gt 0 ]; then
-  echo "Unexpected arguments: $*" >&2
-  exit 1
+  die "Unexpected arguments: $*"
 fi
-
-# Expand leading ~ in paths (CLI args may leave them literal).
-expand_path() {
-  case "$1" in
-    "~"|"~/"*) printf '%s\n' "${HOME}${1#\~}" ;;
-    *) printf '%s\n' "$1" ;;
-  esac
-}
 
 bin_dir="$(expand_path "${bin_dir}")"
 root_prefix="$(expand_path "${root_prefix}")"
@@ -126,8 +101,7 @@ detect_platform_arch() {
     Darwin) platform="osx" ;;
     *NT*) platform="win" ;;
     *)
-      echo "error: unsupported OS: $(uname)" >&2
-      exit 1
+      die "unsupported OS: $(uname)"
       ;;
   esac
 
@@ -145,8 +119,7 @@ detect_platform_arch() {
   case "${platform}-${arch}" in
     linux-aarch64|linux-ppc64le|linux-64|osx-arm64|osx-64|win-64|win-arm64) ;;
     *)
-      echo "error: unsupported platform/arch: ${platform}-${arch}" >&2
-      exit 1
+      die "unsupported platform/arch: ${platform}-${arch}"
       ;;
   esac
 
@@ -169,20 +142,11 @@ micromamba_bin="${bin_dir}/micromamba"
 echo "Downloading micromamba (${platform}-${arch}) from:"
 echo "  ${release_url}"
 
-if command -v curl >/dev/null 2>&1; then
-  curl -fsSL --compressed "${release_url}" -o "${micromamba_bin}"
-elif command -v wget >/dev/null 2>&1; then
-  wget -qO "${micromamba_bin}" "${release_url}"
-else
-  echo "error: need curl or wget to download micromamba" >&2
-  exit 1
-fi
-
+download_file "${release_url}" "${micromamba_bin}"
 chmod +x "${micromamba_bin}"
 
 if [ ! -x "${micromamba_bin}" ]; then
-  echo "error: micromamba binary not found after install: ${micromamba_bin}" >&2
-  exit 1
+  die "micromamba binary not found after install: ${micromamba_bin}"
 fi
 
 echo "Installed micromamba: ${micromamba_bin}"
@@ -203,7 +167,7 @@ if [ -n "${shells_arg}" ]; then
   unset _shells_csv
 else
   for candidate in bash zsh fish; do
-    if command -v "${candidate}" >/dev/null 2>&1; then
+    if have_cmd "${candidate}"; then
       target_shells+=("${candidate}")
     fi
   done
@@ -223,7 +187,7 @@ initialized_shells=()
 
 if [ "${do_init}" -eq 1 ]; then
   if [ "${#target_shells[@]}" -eq 0 ]; then
-    echo "warning: no shells found to initialize (bash/zsh/fish missing from PATH)" >&2
+    warn "no shells found to initialize (bash/zsh/fish missing from PATH)"
   else
     for shell in "${target_shells[@]}"; do
       echo "Initializing shell: ${shell}"

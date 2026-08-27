@@ -35,12 +35,10 @@
 
 set -euo pipefail
 
-usage() {
-  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
-  printf '%s\n' '#' 'Options:' '#'
-  awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "$0"
-  exit 0
-}
+_LIB="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
+[ -f "${_LIB}" ] || { echo "error: missing ${_LIB} (keep this script in the repo tree)" >&2; exit 1; }
+# shellcheck source=lib/common.sh
+. "${_LIB}"
 
 # Linux x86_64 runfile driver versions (newest patch first per major.minor).
 # Sourced from Spack's cuda package plus CUDA 13.3.1.
@@ -159,13 +157,6 @@ $1
 EOF
 }
 
-expand_path() {
-  case "$1" in
-    "~"|"~/"*) printf '%s\n' "${HOME}${1#\~}" ;;
-    *) printf '%s\n' "$1" ;;
-  esac
-}
-
 default_prefix() {
   if [ -d "${HOME}/shared_software" ]; then
     printf '%s\n' "${HOME}/shared_software/cuda"
@@ -183,42 +174,12 @@ print_env_hints() {
     "  export LD_LIBRARY_PATH=\"${toolkit_path}/lib64\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\""
 }
 
-download_runfile() {
-  local url="$1"
-  local dest="$2"
-
-  echo "Downloading:"
-  echo "  ${url}"
-  echo "  -> ${dest}"
-
-  if command -v wget >/dev/null 2>&1; then
-    wget -c "${url}" -O "${dest}"
-  elif command -v curl >/dev/null 2>&1; then
-    curl -fL -C - -o "${dest}" "${url}"
-  else
-    echo "error: need wget or curl to download the CUDA runfile" >&2
-    exit 1
-  fi
-
-  if [ ! -s "${dest}" ]; then
-    echo "error: download produced an empty file: ${dest}" >&2
-    exit 1
-  fi
-}
-
 version=""
 prefix=""
 list_only=0
 runfile_url=""
 force=0
 tmpdir=""
-
-require_value() {
-  if [ "$#" -lt 2 ]; then
-    echo "error: $1 requires a value" >&2
-    exit 1
-  fi
-}
 
 # Portable flag parser (no GNU getopt dependency; works with macOS /bin/bash 3.2).
 while [ "$#" -gt 0 ]; do
@@ -259,19 +220,16 @@ while [ "$#" -gt 0 ]; do
       break
       ;;
     -*)
-      echo "unrecognized option: $1" >&2
-      exit 1
+      die "unrecognized option: $1"
       ;;
     *)
-      echo "Unexpected arguments: $*" >&2
-      exit 1
+      die "Unexpected arguments: $*"
       ;;
   esac
 done
 
 if [ "$#" -gt 0 ]; then
-  echo "Unexpected arguments: $*" >&2
-  exit 1
+  die "Unexpected arguments: $*"
 fi
 
 if [ "${list_only}" -eq 1 ]; then
@@ -280,14 +238,11 @@ if [ "${list_only}" -eq 1 ]; then
 fi
 
 if [ -z "${version}" ]; then
-  echo "error: --version is required (see --help or --list)" >&2
-  exit 1
+  die "--version is required (see --help or --list)"
 fi
 
 if ! printf '%s' "${version}" | grep -Eq '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
-  echo "error: invalid CUDA version: ${version}" >&2
-  echo "expected major.minor or major.minor.patch, for example 11.7 or 11.7.0" >&2
-  exit 1
+  die "invalid CUDA version: ${version} (expected major.minor or major.minor.patch, for example 11.7 or 11.7.0)"
 fi
 
 if [ -z "${prefix}" ]; then
@@ -308,17 +263,14 @@ if [ -n "${runfile_url}" ]; then
   resolved_version="${version}"
 else
   if ! resolved_version="$(resolve_cuda_version "${version}")"; then
-    echo "error: unknown CUDA version: ${version}" >&2
-    echo "use --list to see known versions, or pass --url for an explicit runfile" >&2
-    exit 1
+    die "unknown CUDA version: ${version} (use --list, or pass --url for an explicit runfile)"
   fi
   if [ "${resolved_version}" != "${version}" ]; then
     echo "Resolved CUDA ${version} -> ${resolved_version}"
   fi
   driver="$(lookup_driver "${resolved_version}")"
   if [ -z "${driver}" ]; then
-    echo "error: no runfile mapping for CUDA ${resolved_version}" >&2
-    exit 1
+    die "no runfile mapping for CUDA ${resolved_version}"
   fi
   runfile_url="https://developer.download.nvidia.com/compute/cuda/${resolved_version}/local_installers/cuda_${resolved_version}_${driver}_linux.run"
 fi
@@ -327,8 +279,7 @@ runfile_name="$(basename "${runfile_url%%\?*}")"
 case "${runfile_name}" in
   *.run) ;;
   *)
-    echo "error: URL does not look like a CUDA runfile: ${runfile_url}" >&2
-    exit 1
+    die "URL does not look like a CUDA runfile: ${runfile_url}"
     ;;
 esac
 
@@ -337,15 +288,13 @@ toolkit_path="${prefix}/cuda-${major_minor}"
 runfile_path="${prefix}/${runfile_name}"
 
 if [ "$(uname -s)" != "Linux" ]; then
-  echo "error: this installer only supports Linux x86_64 runfiles (OS: $(uname -s))" >&2
-  exit 1
+  die "this installer only supports Linux x86_64 runfiles (OS: $(uname -s))"
 fi
 
 case "$(uname -m)" in
   x86_64|amd64) ;;
   *)
-    echo "error: this installer only supports Linux x86_64 (arch: $(uname -m))" >&2
-    exit 1
+    die "this installer only supports Linux x86_64 (arch: $(uname -m))"
     ;;
 esac
 
@@ -368,7 +317,7 @@ mkdir -p "${prefix}" "${tmpdir}"
 if [ -s "${runfile_path}" ]; then
   echo "Runfile already present; resuming or verifying with wget/curl -c"
 fi
-download_runfile "${runfile_url}" "${runfile_path}"
+download_file_resume "${runfile_url}" "${runfile_path}"
 
 echo "Installing toolkit (silent, no driver, --override)..."
 bash "${runfile_path}" \
@@ -379,9 +328,7 @@ bash "${runfile_path}" \
   --tmpdir="${tmpdir}"
 
 if [ ! -x "${toolkit_path}/bin/nvcc" ]; then
-  echo "error: install finished but nvcc was not found at ${toolkit_path}/bin/nvcc" >&2
-  echo "see /tmp/cuda-installer.log if it exists" >&2
-  exit 1
+  die "install finished but nvcc was not found at ${toolkit_path}/bin/nvcc (see /tmp/cuda-installer.log if it exists)"
 fi
 
 echo "Installed: ${toolkit_path}/bin/nvcc"

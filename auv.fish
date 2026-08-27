@@ -7,7 +7,7 @@ set UV_ENV_PATH "$HOME/.uv/venvs"
 function uv_list
     if test -d "$UV_ENV_PATH"
         echo "UV Environments:"
-        ls $UV_ENV_PATH
+        ls "$UV_ENV_PATH"
     else
         echo "No UV environments found."
     end
@@ -15,25 +15,26 @@ end
 
 # Function to activate an environment
 function uv_activate
-	set -l env_name $argv[1]
+    set -l env_name $argv[1]
     if test -z "$env_name"
         echo "Usage: uv activate <env_name>"
         return 1
     end
 
     set ENV_PATH "$UV_ENV_PATH/$env_name"
-    
+
     if test -d "$ENV_PATH"
         source "$ENV_PATH/bin/activate.fish"
         echo "Activated UV environment: $env_name"
     else
         echo "Environment '$env_name' not found."
+        return 1
     end
 end
 
 # Function to create a new environment
 function uv_create
-	set -l env_name $argv[1]
+    set -l env_name $argv[1]
     if test -z "$env_name"
         echo "Usage: uv create <env_name>"
         return 1
@@ -42,25 +43,32 @@ function uv_create
     set ENV_NAME $env_name
     set ENV_PATH "$UV_ENV_PATH/$ENV_NAME"
 
-    uv venv $ENV_PATH $argv[2..-1]
+    command uv venv "$ENV_PATH" $argv[2..-1]
     echo "Environment '$ENV_NAME' created!"
 end
 
 # Function to remove an environment
 function uv_delete
-	set -l env_name $argv[1]
+    set -l env_name $argv[1]
     if test -z "$env_name"
-        echo "Usage: uv remove <env_name>"
+        echo "Usage: uv delete <env_name>"
         return 1
     end
 
     set ENV_PATH "$UV_ENV_PATH/$env_name"
 
     if test -d "$ENV_PATH"
-        rm -rf "$ENV_PATH"
-        echo "Environment '$env_name' deleted."
+        read -P "Delete environment '$env_name' at $ENV_PATH? [y/N] " confirm
+        switch "$confirm"
+            case y Y
+                rm -rf "$ENV_PATH"
+                echo "Environment '$env_name' deleted."
+            case '*'
+                echo "Aborted."
+        end
     else
         echo "Environment '$env_name' not found."
+        return 1
     end
 end
 
