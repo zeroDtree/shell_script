@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 
 # @help-begin
-# Download Clash .gz into a directory, gunzip, and chmod.
+# Download the official uv standalone installer and install uv into a directory.
 #
 # Usage:
-#   ./install_clash.sh [options]
+#   ./uv_install.sh [options]
 #
 # If no options are passed, the default behavior is equivalent to:
-#   ./install_clash.sh --dir ~/software/clash
+#   ./uv_install.sh --dir ~/.local/bin --url https://astral.sh/uv/install.sh
 # @help-end
 
 # @help-options-begin
-#   -d, --dir PATH          install directory (default: ~/software/clash)
-#   -u, --url URL           download URL (default: clash-linux-amd64 v1.18.0)
+#   -d, --dir PATH          install directory (default: ~/.local/bin)
+#   -u, --url URL           installer script URL (default: astral.sh uv install.sh)
 #   -h, --help              show help
 # @help-options-end
 
@@ -23,8 +23,8 @@ _LIB="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 # shellcheck source=lib/common.sh
 . "${_LIB}"
 
-install_dir="${HOME}/software/clash"
-url="https://pub-eac3eb5670f44f09984dee5c57939316.r2.dev/clash-linux-amd64-v1.18.0.gz"
+install_dir="${HOME}/.local/bin"
+url="https://astral.sh/uv/install.sh"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -61,14 +61,14 @@ fi
 install_dir="$(expand_path "${install_dir}")"
 mkdir -p "${install_dir}"
 
-gz_name="$(basename "${url%%\?*}")"
-gz_path="${install_dir}/${gz_name}"
-download_file "${url}" "${gz_path}"
+run_installer() {
+  env UV_INSTALL_DIR="${install_dir}" UV_NO_MODIFY_PATH=1 sh
+}
 
-gunzip -f "${gz_path}"
-binary_name="${gz_name%.gz}"
-binary_path="${install_dir}/${binary_name}"
-[ -f "${binary_path}" ] || die "binary not found after gunzip: ${binary_path}"
-chmod 755 "${binary_path}"
+download_stdout "${url}" | run_installer
 
-echo "Installed clash: ${binary_path}"
+if [ ! -x "${install_dir}/uv" ]; then
+  die "uv binary not found after install: ${install_dir}/uv"
+fi
+
+echo "Installed uv: ${install_dir}/uv"

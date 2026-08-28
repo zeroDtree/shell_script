@@ -4,7 +4,7 @@
 # Clash proxy-group switcher with auto API setup.
 #
 # Usage:
-#   ./switch_clash.sh [options] <command>
+#   ./clash_switch.sh [options] <command>
 #
 # Commands:
 #   setup              ensure Clash API is enabled in config (no auto-restart)
