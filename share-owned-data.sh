@@ -26,8 +26,8 @@
 # @help-end
 
 # @help-options-begin
-#   --normalize-perms   chmod directories to 2755; files without any execute bit
-#                       to 644, with any execute bit to 755
+#   --normalize-perms   chmod directories to 2750; files without any execute bit
+#                       to 640, with any execute bit to 750
 #   -n, --dry-run       print chgrp and chmod without running them
 #   -h, --help          show help
 # @help-options-end
@@ -106,20 +106,27 @@ chmod_files() {
   local f
   if [ "$DRY_RUN" -eq 1 ]; then
     while IFS= read -r -d '' f; do
-      print_cmd chmod 644 "$f"
+      print_cmd chmod "${SHARE_OWNED_FILE_MODE}" "$f"
     done < <(find "$tree" -type f ! -perm "${pe}" -print0 2>/dev/null)
     while IFS= read -r -d '' f; do
-      print_cmd chmod 755 "$f"
+      print_cmd chmod "${SHARE_OWNED_EXEC_MODE}" "$f"
     done < <(find "$tree" -type f -perm "${pe}" -print0 2>/dev/null)
   else
-    find "$tree" -type f ! -perm "${pe}" -exec chmod 644 {} +
-    find "$tree" -type f -perm "${pe}" -exec chmod 755 {} +
+    find "$tree" -type f ! -perm "${pe}" -exec chmod "${SHARE_OWNED_FILE_MODE}" {} +
+    find "$tree" -type f -perm "${pe}" -exec chmod "${SHARE_OWNED_EXEC_MODE}" {} +
   fi
 }
 
 : "${DATA_ROOT:=/data}"
 : "${SHARED_DATA_PATH:=${DATA_ROOT}/shared_data}"
 : "${SHARED_GROUP:=shared_data}"
+
+# Matches isolation USER_UMASK_HINT=027 (other has no access). Keep in lockstep
+# with common/fix-migrated-tree.sh. setgid dir rwxr-x---, file rw-r-----,
+# executable rwxr-x---. Not sticky and not group-writable.
+SHARE_OWNED_DIR_MODE=2750
+SHARE_OWNED_FILE_MODE=640
+SHARE_OWNED_EXEC_MODE=750
 
 NORMALIZE_PERMS=0
 if [ "${DRY_RUN:-0}" = 1 ]; then
@@ -191,7 +198,7 @@ for p in "${CANON[@]}"; do
   info "sharing: ${p}"
   run_cmd chgrp -R "${SHARED_GROUP}" "$p"
   if [ "${NORMALIZE_PERMS}" -eq 1 ]; then
-    chmod_dirs "$p" 2755
+    chmod_dirs "$p" "${SHARE_OWNED_DIR_MODE}"
     chmod_files "$p" "${SHARE_OWNED_FIND_PERM_ANY}"
   else
     chmod_dirs "$p" g+s
@@ -199,7 +206,7 @@ for p in "${CANON[@]}"; do
 done
 
 if [ "${NORMALIZE_PERMS}" -eq 1 ]; then
-  info "ok: chgrp ${SHARED_GROUP}, normalized dirs 2755 + files 644/755 (${#CANON[@]} path(s))"
+  info "ok: chgrp ${SHARED_GROUP}, normalized dirs ${SHARE_OWNED_DIR_MODE} + files ${SHARE_OWNED_FILE_MODE}/${SHARE_OWNED_EXEC_MODE} (${#CANON[@]} path(s))"
 else
   info "ok: group ${SHARED_GROUP} and setgid on directories under ${#CANON[@]} path(s)"
 fi
