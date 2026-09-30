@@ -45,6 +45,25 @@ expand_path() {
   esac
 }
 
+# Drop trailing slashes, but keep a root path of "/".
+strip_trailing_slashes() {
+  local path="$1"
+  while [ "$path" != "/" ] && [ "${path%/}" != "$path" ]; do
+    path="${path%/}"
+  done
+  printf '%s\n' "$path"
+}
+
+# Print a command the way the shell would quote it. Dry-run output starts with "+".
+print_cmd() {
+  local arg
+  printf '+'
+  for arg in "$@"; do
+    printf ' %q' "$arg"
+  done
+  printf '\n'
+}
+
 # Call as: require_value "$@"
 require_value() {
   if [ "$#" -lt 2 ]; then

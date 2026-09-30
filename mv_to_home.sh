@@ -17,7 +17,7 @@
 # destination already exists.
 #
 # Example:
-#   ./mv_to_home.sh --user zhougl ~/Desktop/domainbed-main
+#   ./mv_to_home.sh --user USER ~/Desktop/domainbed-main
 # @help-end
 
 # @help-options-begin
@@ -99,14 +99,6 @@ validate_account() {
   esac
 }
 
-strip_trailing_slashes() {
-  local path="$1"
-  while [ "$path" != "/" ] && [ "${path%/}" != "$path" ]; do
-    path="${path%/}"
-  done
-  printf '%s\n' "$path"
-}
-
 # Absolute path of SOURCE itself. Do not resolve symlinks; mv moves the link.
 to_absolute() {
   local path="$1"
@@ -176,15 +168,6 @@ resolve_user_home() {
     die "home directory does not exist: ${home}"
   fi
   printf '%s\n' "$home"
-}
-
-print_cmd() {
-  local arg
-  printf '+'
-  for arg in "$@"; do
-    printf ' %q' "$arg"
-  done
-  printf '\n'
 }
 
 run_privileged() {
