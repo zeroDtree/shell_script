@@ -21,3 +21,4 @@ A few useful scripts. Pass `--help` to a script for its options.
 - [`update_repo.sh`](update_repo.sh) clones a repository or fast-forwards an existing checkout.
 - [`git_re_init.sh`](git_re_init.sh) rebuilds the current repository from its origin and keeps submodules.
 - [`mv_to_home.sh`](mv_to_home.sh) moves a path into a user's home directory and runs `chown -R`.
+- [`share-owned-data.sh`](share-owned-data.sh) publishes a tree you own into `SHARED_GROUP` (default `shared_data`).
