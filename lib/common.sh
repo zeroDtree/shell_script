@@ -45,6 +45,14 @@ expand_path() {
   esac
 }
 
+# Remove leading and trailing whitespace.
+trim() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "${value}"
+}
+
 # Drop trailing slashes, but keep a root path of "/".
 strip_trailing_slashes() {
   local path="$1"
