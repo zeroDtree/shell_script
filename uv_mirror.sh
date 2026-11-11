@@ -79,14 +79,5 @@ url = "${mirror_url}"
 default = true
 EOF
 
-if [ -f "${output_path}" ] && cmp -s "${tmp}" "${output_path}"; then
-  echo "Config unchanged, skipping: ${output_path}"
-else
-  if [ -f "${output_path}" ]; then
-    cp -a "${output_path}" "${output_path}.bak.$(date +%Y%m%d%H%M%S)"
-  fi
-  cp -a "${tmp}" "${output_path}"
-  echo "Updated: ${output_path}"
-fi
-
+deploy_file_if_changed "${tmp}" "${output_path}" || true
 echo "uv default index: ${mirror_url}"

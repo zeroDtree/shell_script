@@ -6,6 +6,7 @@ A few useful scripts. Pass `--help` to a script for its options.
 
 - [`uv_install.sh`](uv_install.sh) installs the uv binary.
 - [`uv_mirror.sh`](uv_mirror.sh) writes uv's default PyPI index (Tsinghua mirror) to `~/.config/uv/uv.toml`.
+- [`pip_mirror.sh`](pip_mirror.sh) writes pip's default PyPI index (Tsinghua mirror) to `~/.config/pip/pip.conf`.
 - [`auv.fish`](auv.fish) adds Fish commands (`list`, `activate`, `create`, `delete`) for virtualenvs under `~/.uv/venvs`, and forwards every other command to `uv`.
 - [`miniconda_install.sh`](miniconda_install.sh) installs Miniconda on Linux and disables auto-activation of base.
 - [`micromamba_install.sh`](micromamba_install.sh) installs micromamba and pins conda-forge.

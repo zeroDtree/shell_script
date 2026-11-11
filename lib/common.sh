@@ -132,3 +132,22 @@ download_stdout() {
     die "need wget or curl to download"
   fi
 }
+
+# Copy src to dest when contents differ. Back up dest first.
+# Returns 0 if dest was updated, 1 if unchanged.
+# Callers often use `|| true` or `if`, which disables set -e inside this function,
+# so a failed cp must exit explicitly.
+deploy_file_if_changed() {
+  local src="$1"
+  local dest="$2"
+  if [ -f "$dest" ] && cmp -s "$src" "$dest"; then
+    echo "Config unchanged, skipping: $dest"
+    return 1
+  fi
+  if [ -f "$dest" ]; then
+    cp -a "$dest" "${dest}.bak.$(date +%Y%m%d%H%M%S)" || die "failed to back up $dest"
+  fi
+  cp -a "$src" "$dest" || die "failed to update $dest"
+  echo "Updated: $dest"
+  return 0
+}
