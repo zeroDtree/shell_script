@@ -10,6 +10,7 @@ DEFAULT_NAME=""
 DEFAULT_DEVICE=""
 CONN_UUID=""
 
+
 # read -p hides its prompt unless stdin is a terminal. Print it ourselves.
 prompt_read() {
   local __reply=""
