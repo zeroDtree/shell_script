@@ -13,10 +13,18 @@ A few useful scripts. Pass `--help` to a script for its options.
 - [`conda_env_mgr.sh`](conda_env_mgr.sh) packs an environment with conda-pack, or unpacks that archive and runs conda-unpack.
 - [`cuda_install.sh`](cuda_install.sh) installs the CUDA toolkit only, from a Linux runfile, into a user prefix.
 
+## System
+
+- [`apt_install.sh`](apt_install.sh) installs a personal Ubuntu package set and needs sudo.
+- [`apt_source.sh`](apt_source.sh) switches Ubuntu apt sources to a mirror (default Tsinghua) and leaves the security suite on official hosts.
+- [`static_ip.sh`](static_ip.sh) interactively sets a NetworkManager IPv4 profile to a static address (run as root).
+
 ## Proxy
 
 - [`clash_install.sh`](clash_install.sh) downloads a Clash binary, gunzips it, and marks it executable.
 - [`clash_switch.sh`](clash_switch.sh) turns on the Clash HTTP API if needed and switches the active node in a proxy group.
+- [`clash-tunnel.sh`](clash-tunnel.sh) opens an SSH remote forward from a server to the local Clash proxy and records the allocated port.
+- [`frp_auto_restart.sh`](frp_auto_restart.sh) checks the frpc connection to an FRP server and restarts frpc when it is down.
 
 ## Repos and files
 
@@ -24,3 +32,8 @@ A few useful scripts. Pass `--help` to a script for its options.
 - [`git_re_init.sh`](git_re_init.sh) rebuilds the current repository from its origin and keeps submodules.
 - [`mv_to_home.sh`](mv_to_home.sh) moves a path into a user's home directory and runs `chown -R`.
 - [`share-owned-data.sh`](share-owned-data.sh) publishes a tree you own into `SHARED_GROUP` (default `shared_data`).
+
+## Development
+
+- [`template.sh`](template.sh) is the copy-me CLI parser demo for new scripts.
+- [`lib/common.sh`](lib/common.sh) is the shared helper library the scripts source; it is not run on its own.
